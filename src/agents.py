@@ -3,7 +3,7 @@ import re
 from typing import TypedDict, Dict, Any
 from langgraph.graph import StateGraph, END
 
-# ✅ CORRECT IMPORTS (THIS FIXES YOUR ERROR)
+# CORRECT IMPORTS (THIS FIXES YOUR ERROR)
 from src.windchill_client import WindchillClient
 from src.builders import create_document
 
@@ -37,10 +37,10 @@ class AgentState(TypedDict):
 def author_node(state: AgentState) -> AgentState:
     req = state["requirement"]
 
-    # ✅ Extract document name
+    # Extract document name
     name_match = re.search(r"create\s+([a-zA-Z0-9_\-]+)", req, re.IGNORECASE)
 
-    # ✅ Extract full container (supports spaces)
+    # Extract full container (supports spaces)
     container_match = re.search(r"inside\s+(.+)", req, re.IGNORECASE)
 
     if not name_match:
@@ -49,10 +49,10 @@ def author_node(state: AgentState) -> AgentState:
     doc_name = name_match.group(1)
     container_name = container_match.group(1).strip() if container_match else None
 
-    print("📄 Document:", doc_name)
-    print("📦 Container:", container_name)
+    print("Document:", doc_name)
+    print("Container:", container_name)
 
-    # ✅ Handle document creation
+    # Handle document creation
     if "doc" in req.lower() or "document" in req.lower():
 
         container_oid = client.get_container_id(container_name)
@@ -82,7 +82,7 @@ def author_node(state: AgentState) -> AgentState:
 # EXECUTION NODE
 # -------------------------
 def execution_node(state: AgentState) -> AgentState:
-    print(f"\n🚀 Executing: {state['http_method']} {state['endpoint']}")
+    print(f"\n Executing: {state['http_method']} {state['endpoint']}")
 
     result = client.execute_request(
         state["http_method"],
@@ -90,7 +90,7 @@ def execution_node(state: AgentState) -> AgentState:
         state["current_payload"]
     )
 
-    print("📡 API RESULT:", result)
+    print(" API RESULT:", result)
 
     return {
         **state,
@@ -105,10 +105,10 @@ def healer_node(state: AgentState) -> AgentState:
     result = state["execution_result"]
 
     if result.get("status_code") in [200, 201, 202, 204]:
-        print("✅ SUCCESS")
+        print(" SUCCESS")
         return {**state, "error_logs": ""}
 
-    print(f"❌ FAILED: {result.get('status_code')}")
+    print(f" FAILED: {result.get('status_code')}")
 
     return {
         **state,
@@ -125,7 +125,7 @@ def route(state: AgentState) -> str:
         return "done"
 
     if state["retry_count"] >= 2:
-        print("❌ Max retries reached")
+        print(" Max retries reached")
         return "fail"
 
     return "retry"
@@ -155,5 +155,5 @@ workflow.add_conditional_edges(
     }
 )
 
-# ✅ USED BY CLI
+#  USED BY CLI
 windchill_qa_graph = workflow.compile()
