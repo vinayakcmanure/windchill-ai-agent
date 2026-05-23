@@ -226,8 +226,6 @@ OPENAI_API_KEY=your_openai_key
 OPENAI_MODEL_NAME=gpt-4o-mini
 ```
 
-> ⚠️ **Never commit your `.env` file.** It is already listed in `.gitignore`.
-
 ---
 
 ## ▶️ Usage Examples
