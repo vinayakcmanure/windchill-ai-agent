@@ -73,7 +73,7 @@ python cli.py --task "Create Design_Spec_Rev_A in the Released_Products containe
    └─ OID: OR:wt.inf.container.WTProduct:887766 ✓
 📄 Creating document: Design_Spec_Rev_A
    └─ POST /DocMgmt/Documents
-✅ Success — Status: 201 Created
+✅ Success — Status: 200 Created
 ```
 
 ---
@@ -221,9 +221,8 @@ WINDCHILL_HOST=https://your-windchill-server.company.com
 WINDCHILL_USERNAME=your_username
 WINDCHILL_PASSWORD=your_password
 
-# LLM
-OPENAI_API_KEY=your_openai_key
-OPENAI_MODEL_NAME=gpt-4o-mini
+# LLM API KEY
+LLM_API_KEY="LLM API KEY"
 ```
 
 ---
@@ -240,28 +239,30 @@ python cli.py --task "Create Design_Spec_Rev_A in the Released_Products containe
 python cli.py --task "Create Thermal_Analysis_Report inside Engineering_Vault"
 ```
 
-**Create a named deliverable:**
-```bash
-python cli.py --task "Create Structural_Test_Report_2026 in DocMgmt"
-```
-
 ---
 
 ## 📂 Project Structure
 
 ```
-windchill-agentic-qa/
+windchill-ai-agent/
 │
-├── src/
-│   ├── agents.py                 # LangGraph agent graph, tool wiring & state machine
-│   └── windchill_client.py       # WRS REST client — auth, session, GET/POST handlers
+├── cli.py                    # ✅ CLI entry point (runs the agent)
+├── README.md                 # Project documentation
+├── requirements.txt          # Python dependencies
+├── .gitignore
+├── .env.example
 │
-├── cli.py                        # CLI entry point — accepts --task argument
-├── windchill_templates.json      # API payload templates keyed by operation type
-│
-├── requirements.txt              # Python dependencies
-├── .env.example                  # Environment variable template
-└── .gitignore
+└── src/
+    ├── __init__.py           # ✅ Makes src a Python package
+    │
+    ├── agents.py             # ✅ LangGraph workflow (Author → Executor → Healer)
+    │
+    ├── windchill_client.py  # ✅ Handles:
+    │                         #   - CSRF token
+    │                         #   - API calls
+    │                         #   - container lookup
+    │
+    └── builders.py           # ✅ Builds payloads (create document etc.)
 ```
 
 ---
