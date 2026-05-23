@@ -332,7 +332,7 @@ For major changes, please open an issue first to discuss scope and approach.
 *Principal Solution Architect — PLM & AI*
 *18+ years of PTC Windchill delivery across global manufacturing enterprises*
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/vinayakcmanure)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/vinayak-manure-71961615/)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/vinayakcmanure)
 
 *Built from 18 years of Windchill pain — and a belief that engineers deserve better tools.*
