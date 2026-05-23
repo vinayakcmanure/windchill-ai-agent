@@ -1,0 +1,8 @@
+langchain
+langgraph
+langchain-openai
+requests
+python-dotenv
+pydantic
+truststore
+requests-ntlm
