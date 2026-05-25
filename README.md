@@ -248,23 +248,54 @@ python cli.py --task "Create Thermal_Analysis_Report inside Engineering_Vault"
 ```
 windchill-ai-agent/
 │
-├── cli.py                    # ✅ CLI entry point (runs the agent)
-├── README.md                 # Project documentation
-├── requirements.txt          # Python dependencies
-├── .gitignore
-├── .env.example
+├── cli.py                          ✅ Entry point (user → agent)
+├── README.md
+├── requirements.txt
+├── .env
 │
-└── src/
-    ├── __init__.py           # ✅ Makes src a Python package
-    │
-    ├── agents.py             # ✅ LangGraph workflow (Author → Executor → Healer)
-    │
-    ├── windchill_client.py  # ✅ Handles:
-    │                         #   - CSRF token
-    │                         #   - API calls
-    │                         #   - container lookup
-    │
-    └── builders.py           # ✅ Builds payloads (create document etc.)
+├── src/
+│   ├── __init__.py
+│   │
+│   ├── agents.py                  ✅ Central brain (LangGraph orchestration)
+│   ├── llm.py                     ✅ LLM parsing layer
+│   ├── windchill_client.py        ✅ API execution layer
+│
+│   ├── domains/                   ✅ Domain-driven architecture
+│   │   ├── __init__.py
+│   │
+│   │   ├── DocMgmt/               ✅ ACTIVE DOMAIN
+│   │   │   ├── __init__.py
+│   │   │   ├── actions.py         ✅ Business logic
+│   │   │   ├── builder.py         ✅ API payload construction
+│   │   │
+│   │   ├── PartMgmt/              🔜 (future)
+│   │   │   ├── __init__.py
+│   │   │   ├── actions.py
+│   │   │   ├── builder.py
+│   │   │
+│   │   ├── ChangeMgmt/            🔜 (future)
+│   │   │   ├── __init__.py
+│   │   │
+│   │   ├── Audit/                 (leave empty or remove)
+│   │   ├── CAPA/
+│   │   ├── CEM/
+│   │   ├── ... (other Windchill domains)
+│
+│   ├── utils/                     ✅ Optional helpers (future)
+│   │   ├── __init__.py
+│   │   ├── logger.py              (logging later)
+│   │   ├── constants.py
+│
+│   ├── config/                    ✅ Config layer (future)
+│       ├── __init__.py
+│       ├── settings.py
+│
+├── tests/                         ✅ (future)
+│   ├── test_docmgmt.py
+│   ├── test_agent.py
+│
+├── .gitignore
+
 ```
 
 ---
