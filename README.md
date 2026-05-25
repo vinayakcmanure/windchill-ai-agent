@@ -221,8 +221,10 @@ WINDCHILL_HOST=https://your-windchill-server.company.com
 WINDCHILL_USERNAME=your_username
 WINDCHILL_PASSWORD=your_password
 
-# LLM API KEY
-LLM_API_KEY="LLM API KEY"
+# LLM API DETAILS
+LLM_API_KEY="abcdefgh1234"
+LLM_BASE_URL=https://openai.generative.engine.yourcompany.com/v1
+LLM_MODEL=openai.gpt-5.2
 ```
 
 ---
