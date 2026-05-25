@@ -3,12 +3,11 @@ import re
 from typing import TypedDict, Dict, Any
 from langgraph.graph import StateGraph, END
 
-# CORRECT IMPORTS (THIS FIXES YOUR ERROR)
 from src.windchill_client import WindchillClient
 from src.builders import create_document
+from src.llm import parse_requirement   # ✅ LLM integration
 
-
-# ---- FIX SSL ISSUE (Enterprise environments) ----
+# ---- FIX SSL ISSUE ----
 os.environ.pop("SSL_CERT_FILE", None)
 os.environ.pop("SSL_CERT_DIR", None)
 
@@ -32,28 +31,45 @@ class AgentState(TypedDict):
 
 
 # -------------------------
-# AUTHOR NODE (Parser + Builder)
+# AUTHOR NODE (LLM + fallback)
 # -------------------------
 def author_node(state: AgentState) -> AgentState:
     req = state["requirement"]
 
-    # Extract document name
-    name_match = re.search(r"create\s+([a-zA-Z0-9_\-]+)", req, re.IGNORECASE)
+    # ✅ ---- LLM PARSING ----
+    parsed = parse_requirement(req)
 
-    # Extract full container (supports spaces)
-    container_match = re.search(r"inside\s+(.+)", req, re.IGNORECASE)
+    doc_name = parsed.get("document")
+    container_name = parsed.get("container")
 
-    if not name_match:
-        return {**state, "error_logs": "Document name not found"}
+    # ✅ ---- FALLBACK REGEX ----
+    if not doc_name:
+        name_match = re.search(r"create\s+([a-zA-Z0-9_\-]+)", req, re.IGNORECASE)
+        if name_match:
+            doc_name = name_match.group(1)
 
-    doc_name = name_match.group(1)
-    container_name = container_match.group(1).strip() if container_match else None
+    if not container_name:
+        container_match = re.search(
+            r"(?:in|inside)\s+(?:the\s+)?(.+?)\s+container",
+            req,
+            re.IGNORECASE
+        )
+        if container_match:
+            container_name = container_match.group(1).strip()
 
+    print("\n🔍 Parsed Values:")
     print("Document:", doc_name)
     print("Container:", container_name)
 
-    # Handle document creation
-    if "doc" in req.lower() or "document" in req.lower():
+    # ✅ VALIDATION
+    if not doc_name or not container_name:
+        return {
+            **state,
+            "error_logs": "Failed to extract document/container"
+        }
+
+    # ✅ SUPPORT CREATE ACTION
+    if "create" in req.lower():
 
         container_oid = client.get_container_id(container_name)
 
@@ -82,7 +98,7 @@ def author_node(state: AgentState) -> AgentState:
 # EXECUTION NODE
 # -------------------------
 def execution_node(state: AgentState) -> AgentState:
-    print(f"\n Executing: {state['http_method']} {state['endpoint']}")
+    print(f"\n🚀 Executing: {state['http_method']} {state['endpoint']}")
 
     result = client.execute_request(
         state["http_method"],
@@ -90,7 +106,7 @@ def execution_node(state: AgentState) -> AgentState:
         state["current_payload"]
     )
 
-    print(" API RESULT:", result)
+    print("📦 API RESULT:", result)
 
     return {
         **state,
@@ -105,10 +121,10 @@ def healer_node(state: AgentState) -> AgentState:
     result = state["execution_result"]
 
     if result.get("status_code") in [200, 201, 202, 204]:
-        print(" SUCCESS")
+        print("✅ SUCCESS")
         return {**state, "error_logs": ""}
 
-    print(f" FAILED: {result.get('status_code')}")
+    print(f"❌ FAILED: {result.get('status_code')}")
 
     return {
         **state,
@@ -118,14 +134,24 @@ def healer_node(state: AgentState) -> AgentState:
 
 
 # -------------------------
-# ROUTING LOGIC
+# AUTHOR ROUTING (FIXES YOUR CRASH)
+# -------------------------
+def author_route(state: AgentState) -> str:
+    if state.get("error_logs"):
+        print("⛔ Author failed:", state["error_logs"])
+        return "fail"
+    return "ok"
+
+
+# -------------------------
+# HEALER ROUTING
 # -------------------------
 def route(state: AgentState) -> str:
     if state["error_logs"] == "":
         return "done"
 
     if state["retry_count"] >= 2:
-        print(" Max retries reached")
+        print("⛔ Max retries reached")
         return "fail"
 
     return "retry"
@@ -142,7 +168,16 @@ workflow.add_node("Healer", healer_node)
 
 workflow.set_entry_point("Author")
 
-workflow.add_edge("Author", "Executor")
+# ✅ FIXED: ONLY EXECUTE IF AUTHOR SUCCESS
+workflow.add_conditional_edges(
+    "Author",
+    author_route,
+    {
+        "ok": "Executor",
+        "fail": END
+    }
+)
+
 workflow.add_edge("Executor", "Healer")
 
 workflow.add_conditional_edges(
@@ -155,5 +190,5 @@ workflow.add_conditional_edges(
     }
 )
 
-#  USED BY CLI
+# ✅ USED BY CLI
 windchill_qa_graph = workflow.compile()
