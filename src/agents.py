@@ -4,8 +4,10 @@ from typing import TypedDict, Dict, Any
 from langgraph.graph import StateGraph, END
 
 from src.windchill_client import WindchillClient
-from src.builders import create_document
-from src.llm import parse_requirement   # ✅ LLM integration
+from src.llm import parse_requirement
+
+# ✅ Correct import (use actions layer)
+from src.domains.DocMgmt.actions import handle_create
 
 # ---- FIX SSL ISSUE ----
 os.environ.pop("SSL_CERT_FILE", None)
@@ -31,18 +33,20 @@ class AgentState(TypedDict):
 
 
 # -------------------------
-# AUTHOR NODE (LLM + fallback)
+# AUTHOR NODE (LLM + routing)
 # -------------------------
 def author_node(state: AgentState) -> AgentState:
     req = state["requirement"]
 
-    # ✅ ---- LLM PARSING ----
+    # ✅ LLM parsing
     parsed = parse_requirement(req)
 
     doc_name = parsed.get("document")
     container_name = parsed.get("container")
+    domain = parsed.get("domain", "docmgmt")
+    action = parsed.get("action", "create")
 
-    # ✅ ---- FALLBACK REGEX ----
+    # ✅ Fallback regex (if LLM fails)
     if not doc_name:
         name_match = re.search(r"create\s+([a-zA-Z0-9_\-]+)", req, re.IGNORECASE)
         if name_match:
@@ -58,40 +62,48 @@ def author_node(state: AgentState) -> AgentState:
             container_name = container_match.group(1).strip()
 
     print("\n🔍 Parsed Values:")
+    print("Domain:", domain)
+    print("Action:", action)
     print("Document:", doc_name)
     print("Container:", container_name)
 
-    # ✅ VALIDATION
+    # ✅ Validation
     if not doc_name or not container_name:
         return {
             **state,
             "error_logs": "Failed to extract document/container"
         }
 
-    # ✅ SUPPORT CREATE ACTION
-    if "create" in req.lower():
+    # ✅ Domain + Action routing
+    if action.lower() == "create":
 
-        container_oid = client.get_container_id(container_name)
+        if domain.lower() == "docmgmt":
+            result = handle_create(parsed, client)
 
-        if not container_oid:
+        else:
             return {
                 **state,
-                "error_logs": f"Container '{container_name}' not found"
+                "error_logs": f"Unsupported domain: {domain}"
             }
 
-        config = create_document(doc_name, container_oid)
+        # ✅ Handle action errors
+        if "error" in result:
+            return {
+                **state,
+                "error_logs": result["error"]
+            }
 
         return {
             **state,
-            "endpoint": config["endpoint"],
-            "http_method": config["method"],
-            "current_payload": config["payload"],
+            "endpoint": result["endpoint"],
+            "http_method": result["method"],
+            "current_payload": result["payload"],
             "retry_count": 0,
             "execution_result": {},
             "error_logs": ""
         }
 
-    return {**state, "error_logs": "Unsupported operation"}
+    return {**state, "error_logs": f"Unsupported action: {action}"}
 
 
 # -------------------------
@@ -134,7 +146,7 @@ def healer_node(state: AgentState) -> AgentState:
 
 
 # -------------------------
-# AUTHOR ROUTING (FIXES YOUR CRASH)
+# AUTHOR ROUTING
 # -------------------------
 def author_route(state: AgentState) -> str:
     if state.get("error_logs"):
@@ -168,7 +180,7 @@ workflow.add_node("Healer", healer_node)
 
 workflow.set_entry_point("Author")
 
-# ✅ FIXED: ONLY EXECUTE IF AUTHOR SUCCESS
+# ✅ Only proceed if author succeeds
 workflow.add_conditional_edges(
     "Author",
     author_route,
@@ -190,5 +202,5 @@ workflow.add_conditional_edges(
     }
 )
 
-# ✅ USED BY CLI
+# ✅ Used by CLI
 windchill_qa_graph = workflow.compile()
