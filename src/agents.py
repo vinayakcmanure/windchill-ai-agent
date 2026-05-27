@@ -1,13 +1,12 @@
 import os
-import re
 from typing import TypedDict, Dict, Any
 from langgraph.graph import StateGraph, END
 
 from src.windchill_client import WindchillClient
 from src.llm import parse_requirement
 
-# ✅ Correct import (use actions layer)
-from src.domains.DocMgmt.actions import handle_create
+# ✅ Router imports
+from src.router import route_action, dispatch, enrich_data
 
 # ---- FIX SSL ISSUE ----
 os.environ.pop("SSL_CERT_FILE", None)
@@ -19,9 +18,9 @@ truststore.inject_into_ssl()
 client = WindchillClient()
 
 
-# -------------------------
+# =========================
 # STATE DEFINITION
-# -------------------------
+# =========================
 class AgentState(TypedDict):
     requirement: str
     endpoint: str
@@ -32,83 +31,56 @@ class AgentState(TypedDict):
     retry_count: int
 
 
-# -------------------------
-# AUTHOR NODE (LLM + routing)
-# -------------------------
+# =========================
+# AUTHOR NODE (FINAL ✅)
+# =========================
 def author_node(state: AgentState) -> AgentState:
     req = state["requirement"]
 
-    # ✅ LLM parsing
+    # ✅ Step 1: LLM parsing
     parsed = parse_requirement(req)
 
-    doc_name = parsed.get("document")
-    container_name = parsed.get("container")
-    domain = parsed.get("domain", "docmgmt")
-    action = parsed.get("action", "create")
+    print("\n🤖 LLM RAW OUTPUT:\n", parsed)
 
-    # ✅ Fallback regex (if LLM fails)
-    if not doc_name:
-        name_match = re.search(r"create\s+([a-zA-Z0-9_\-]+)", req, re.IGNORECASE)
-        if name_match:
-            doc_name = name_match.group(1)
+    # ✅ Attach requirement (IMPORTANT)
+    parsed["requirement"] = req
 
-    if not container_name:
-        container_match = re.search(
-            r"(?:in|inside)\s+(?:the\s+)?(.+?)\s+container",
-            req,
-            re.IGNORECASE
-        )
-        if container_match:
-            container_name = container_match.group(1).strip()
+    # ✅ Step 2: Route
+    domain, action = route_action(parsed, req)
 
-    print("\n🔍 Parsed Values:")
+    print("\n🔍 Routed Values:")
     print("Domain:", domain)
     print("Action:", action)
-    print("Document:", doc_name)
-    print("Container:", container_name)
 
-    # ✅ Validation
-    if not doc_name or not container_name:
+    # ✅ ✅ CRITICAL FIX (THIS WAS MISSING)
+    parsed = enrich_data(parsed, req)
+
+    # ✅ Step 3: Dispatch
+    result = dispatch(domain, action, parsed, client)
+
+    # ✅ Handle errors
+    if "error" in result:
+        print("⛔ Author failed:", result["error"])
         return {
             **state,
-            "error_logs": "Failed to extract document/container"
+            "error_logs": result["error"]
         }
 
-    # ✅ Domain + Action routing
-    if action.lower() == "create":
-
-        if domain.lower() == "docmgmt":
-            result = handle_create(parsed, client)
-
-        else:
-            return {
-                **state,
-                "error_logs": f"Unsupported domain: {domain}"
-            }
-
-        # ✅ Handle action errors
-        if "error" in result:
-            return {
-                **state,
-                "error_logs": result["error"]
-            }
-
-        return {
-            **state,
-            "endpoint": result["endpoint"],
-            "http_method": result["method"],
-            "current_payload": result["payload"],
-            "retry_count": 0,
-            "execution_result": {},
-            "error_logs": ""
-        }
-
-    return {**state, "error_logs": f"Unsupported action: {action}"}
+    # ✅ Success
+    return {
+        **state,
+        "endpoint": result["endpoint"],
+        "http_method": result["method"],
+        "current_payload": result.get("payload", {}),
+        "execution_result": {},
+        "error_logs": "",
+        "retry_count": 0
+    }
 
 
-# -------------------------
+# =========================
 # EXECUTION NODE
-# -------------------------
+# =========================
 def execution_node(state: AgentState) -> AgentState:
     print(f"\n🚀 Executing: {state['http_method']} {state['endpoint']}")
 
@@ -126,9 +98,9 @@ def execution_node(state: AgentState) -> AgentState:
     }
 
 
-# -------------------------
-# SELF-HEALING NODE
-# -------------------------
+# =========================
+# HEALER NODE
+# =========================
 def healer_node(state: AgentState) -> AgentState:
     result = state["execution_result"]
 
@@ -145,9 +117,9 @@ def healer_node(state: AgentState) -> AgentState:
     }
 
 
-# -------------------------
+# =========================
 # AUTHOR ROUTING
-# -------------------------
+# =========================
 def author_route(state: AgentState) -> str:
     if state.get("error_logs"):
         print("⛔ Author failed:", state["error_logs"])
@@ -155,9 +127,9 @@ def author_route(state: AgentState) -> str:
     return "ok"
 
 
-# -------------------------
+# =========================
 # HEALER ROUTING
-# -------------------------
+# =========================
 def route(state: AgentState) -> str:
     if state["error_logs"] == "":
         return "done"
@@ -169,9 +141,9 @@ def route(state: AgentState) -> str:
     return "retry"
 
 
-# -------------------------
+# =========================
 # GRAPH DEFINITION
-# -------------------------
+# =========================
 workflow = StateGraph(AgentState)
 
 workflow.add_node("Author", author_node)
@@ -180,7 +152,6 @@ workflow.add_node("Healer", healer_node)
 
 workflow.set_entry_point("Author")
 
-# ✅ Only proceed if author succeeds
 workflow.add_conditional_edges(
     "Author",
     author_route,
